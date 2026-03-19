@@ -38,7 +38,7 @@ AI Integration: Groq API
 Project Setup :
 
 1)Clone the repository,
-git clone https://github.com/yourusername/SmartHealthCompanion.git
+git clone https:https://github.com/maabma28818-lang/SmartHealthCompanion.git
 
 2)Navigate to the project folder,
 cd SmartHealthCompanion
