@@ -6,8 +6,11 @@ The system provides features like symptom-based disease prediction, doctor searc
 Team Members :
 
 1.Md. Abdullah Mahmood
+
 2.Saksham Kadam
+
 3.Prathamesh More
+
 4.Arsh Taware
 
 Institution :
