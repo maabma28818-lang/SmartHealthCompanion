@@ -1,7 +1,10 @@
 import os
 
-# Google Gemini API
-GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY', "AIzaSyDydt1V58LLoRrrM98A1YeoGo6GnhJgNfk")
+# Google Gemini API (kept for reference)
+GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY', "your_google_api_key")
+
+# Groq API (free alternative)
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', "your_GROQ_api_key")
 
 # Database configuration
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///healthcare.db')

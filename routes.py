@@ -1,26 +1,24 @@
 from flask import render_template, request, jsonify, redirect, url_for, session, flash
 from functools import wraps
-import google.generativeai as genai
 import os
 import json
 import base64
 import re
 from datetime import datetime, timedelta
 from app import app, db
-from models import User, Doctor, Patient, Appointment, SymptomCheck, ImageAnalysisSection, Notification
-from config import GOOGLE_API_KEY
+import models
+from config import GROQ_API_KEY
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash, check_password_hash
+from groq import Groq
 
-# Configure Gemini API
-genai.configure(api_key=GOOGLE_API_KEY)
+# Import model classes after initialization
+from models import User, Doctor, Patient, Appointment, SymptomCheck, ImageAnalysisSection, Notification
 
-# Text model (optimized for faster responses)
-text_model = genai.GenerativeModel('gemini-2.0-flash')
-
-# Vision model (supporting multimodal inputs like images)
-vision_model = genai.GenerativeModel('gemini-pro-vision')
+# Configure Groq client
+groq_client = Groq(api_key=GROQ_API_KEY)
+GROQ_MODEL = 'llama-3.3-70b-versatile'
 
 # Login required decorator
 def login_required(f):
@@ -342,16 +340,21 @@ Preventive Measures:
 
 Note: This is an AI-generated analysis for informational purposes only. Please consult with a healthcare provider for proper medical diagnosis and treatment."""
 
-            response = text_model.generate_content(prompt)
-            
-            if not response or not response.text:
+            response = groq_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            if not response or not response.choices:
                 return jsonify({
                     'success': False,
                     'message': 'No response received from AI. Please try again.'
                 }), 500
+
+            response_text = response.choices[0].message.content
             
-            processed_response = response.text.replace("*", "").replace("•", "")
-            
+            processed_response = response_text.replace("*", "").replace("•", "")
+
             sections = [
                 "Possible Conditions:",
                 "Key Symptoms Analysis:",
@@ -360,7 +363,7 @@ Note: This is an AI-generated analysis for informational purposes only. Please c
                 "Warning Signs:",
                 "Preventive Measures:"
             ]
-            
+
             formatted_response = processed_response
             for section in sections:
                 if section not in formatted_response:
@@ -396,10 +399,11 @@ Note: This is an AI-generated analysis for informational purposes only. Please c
             
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f"Symptom checker error: {str(e)}")
+            import traceback
+            app.logger.error(f"Symptom checker error: {str(e)}\n{traceback.format_exc()}")
             return jsonify({
                 'success': False,
-                'message': 'An error occurred while analyzing symptoms. Please try again.'
+                'message': f'Error: {str(e)}'
             }), 500
     
     return render_template('symptom_checker.html')
@@ -408,16 +412,8 @@ Note: This is an AI-generated analysis for informational purposes only. Please c
 # Function to analyze medical images using Google Gemini's Vision API
 def analyze_medical_image(base64_image, symptoms, age, gender, medical_history):
     try:
-        import base64
-        from PIL import Image
-        import io
-        
-        # Decode base64 image data
-        image_data = base64.b64decode(base64_image)
-        image = Image.open(io.BytesIO(image_data))
-        
-        # Create the prompt
-        prompt = f"""As a medical AI assistant, analyze this medical image with the following patient information:
+        # Groq doesn't support vision, so we analyze based on reported symptoms only
+        prompt = f"""As a medical AI assistant, a patient has uploaded a medical image along with the following information:
 
 Patient Information:
 - Age: {age}
@@ -425,14 +421,13 @@ Patient Information:
 - Reported Symptoms: {symptoms}
 - Medical History: {medical_history}
 
-Please provide a detailed analysis of the visible symptoms or conditions in the image.
-Structure your analysis in the following sections:
+Based on the reported symptoms and patient information, provide a structured analysis:
 
 Visual Findings:
-[Describe all visible symptoms, abnormalities, or medical conditions shown in the image]
+[Based on the reported symptoms, describe what might typically be observed visually for these conditions]
 
 Potential Diagnoses:
-[List possible diagnoses based on the visual findings, ordered by likelihood]
+[List possible diagnoses based on the symptoms, ordered by likelihood]
 
 Recommended Medical Specialties:
 [Suggest which medical specialists would be appropriate for follow-up care]
@@ -442,18 +437,18 @@ Important Notes:
 
 This is for educational purposes only and not a substitute for professional medical diagnosis.
 """
+        response = groq_client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}]
+        )
 
-        # Generate content with the image using Gemini Pro Vision
-        response = vision_model.generate_content([prompt, image])
-        
-        # Extract and return the analysis
-        if response and hasattr(response, 'text'):
-            return response.text
+        if response and response.choices:
+            return response.choices[0].message.content
         else:
-            raise Exception("No response generated from Gemini model")
-        
+            raise Exception("No response generated from AI model")
+
     except Exception as e:
-        app.logger.error(f"Gemini Vision API error: {str(e)}")
+        app.logger.error(f"Image analysis error: {str(e)}")
         raise Exception(f"Error analyzing medical image: {str(e)}")
 
 
